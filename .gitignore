@@ -1,0 +1,7 @@
+cool-lex.cc
+*.d
+*.o
+.vscode/*
+mycoolc
+*BACKUP*
+*.py

@@ -1,0 +1,1 @@
+"This is a string that is cut off by EOF
