@@ -48,18 +48,20 @@ extern YYSTYPE cool_yylval;
 // String Constant Helpers
 
 enum StringScannerState {
+//  NotScanning,
   Normal,
   TooLong,
-  ContainsNullChar,
-  ContainsEOF
+  ContainsNullChar
 };
 
+//StringScannerState stringScannerState = StringScannerState::NotScanning;
 StringScannerState stringScannerState = StringScannerState::Normal;
 
 void ExitStringConstantStartState()
 {
   BEGIN INITIAL;
   string_buf_ptr = string_buf;
+  //stringScannerState = StringScannerState::NotScanning;
   stringScannerState = StringScannerState::Normal;
 }
 
@@ -175,6 +177,7 @@ WHITESPACE [ \n\f\r\t\v]
 <INITIAL>\"[^"]* {
   //TOOD: I think this could be simplified to a regex that matches everything instead of using states
   BEGIN StringConstant;
+  stringScannerState = StringScannerState::Normal;
   if (yytext[yyleng-1] == '\\') 
   {
     // This covers the case where we have an escaped " (\") in the input
@@ -240,27 +243,7 @@ WHITESPACE [ \n\f\r\t\v]
       }
 
       *string_buf_ptr++ = newCharacter;
-    }
-
-    switch (stringScannerState) {
-      case StringScannerState::Normal:
-      {
-        cool_yylval.symbol = stringtable.add_string(string_buf, string_buf_ptr - string_buf);
-        return (STR_CONST);
-      }
-      case StringScannerState::TooLong:
-      {
-        cool_yylval.error_msg = "String constant too long";
-        return (ERROR);
-      }
-      case StringScannerState::ContainsNullChar:
-      {
-        cool_yylval.error_msg = "String contains null character";
-        return (ERROR);
-      }
-    }
-    
-    
+    }    
   }
 }
 
@@ -271,7 +254,34 @@ WHITESPACE [ \n\f\r\t\v]
 }
 
 <StringConstant>\" {
+  int retVal;
+  switch (stringScannerState) {
+    case StringScannerState::Normal:
+    {
+      cool_yylval.symbol = stringtable.add_string(string_buf, string_buf_ptr - string_buf);
+      retVal = STR_CONST;
+      break;
+    }
+    case StringScannerState::TooLong:
+    {
+      cool_yylval.error_msg = "String constant too long";
+      retVal = ERROR;
+      break;
+    }
+    case StringScannerState::ContainsNullChar:
+    {
+      cool_yylval.error_msg = "String contains null character";
+      retVal = ERROR;
+      break;
+    }
+    default:
+    {
+      printf("This should never happen!!");
+      break;
+    }
+  }
   ExitStringConstantStartState();
+  return (retVal);
 }
 
 {DIGIT}+ {
