@@ -6,3 +6,5 @@ mycoolc
 *BACKUP*
 *.py
 lexer
+grading/**
+*.pl

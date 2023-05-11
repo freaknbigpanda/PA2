@@ -65,6 +65,18 @@ void ExitStringConstantStartState()
   stringScannerState = StringScannerState::Normal;
 }
 
+// End String Constant Helpers
+
+// Comment helpers
+
+int CommentOpenBraketDepth = 0;
+
+void ExitCommentState()
+{
+  BEGIN INITIAL;
+  CommentOpenBraketDepth = 0;
+}
+
 %}
 
 /*
@@ -72,14 +84,14 @@ void ExitStringConstantStartState()
  */
 
 %option noyywrap
-%Start StringConstant
+%Start StringConstant MultiLineComment
 
 DARROW =>
 ASSIGN <-
 DIGIT [0-9]
 TYPEIDENTIFIER [A-Z][a-zA-z0-9_]*
 OBJIDENTIFIER [a-z][a-zA-z0-9_]*
-SINGLECHARACTER [;(){},:+=\-\/*~<@]
+SINGLECHARACTER [.;(){},:+=\-\/*~<@]
 
 CLASS [c|C][l|L][a|A][s|S][s|S]
 ELSE [e|E][l|L][s|S][e|E]
@@ -105,7 +117,7 @@ TRUE_RULE t[r|R][u|U][e|E]
 WHITESPACE [ \n\f\r\t\v]
 
 %%
---.*$ {
+<INITIAL>--.*$ {
   // Comment
 #ifdef DEBUG
   ECHO;
@@ -117,19 +129,58 @@ WHITESPACE [ \n\f\r\t\v]
   *  Nested comments
   */
 
-\(\*(.|{WHITESPACE})*\*\) {
+<INITIAL,MultiLineComment>"(*" {
+  BEGIN MultiLineComment;
 #ifdef DEBUG
-  ECHO;
-  printf("\nmatched multiline comment\n");
+  printf("Increasing comment depth\n");
 #endif
+  CommentOpenBraketDepth++;
+}
+
+<MultiLineComment>(.|{WHITESPACE}) {
+  // Multiline comment body, just eat all the input
+}
+
+<MultiLineComment><<EOF>> {
+  ExitCommentState();
+  cool_yylval.error_msg = "EOF in comment";
+  return (ERROR);
+}
+
+<MultiLineComment>"*)" {
+  if (CommentOpenBraketDepth > 1)
+  {
+    // Nested comments
+    #ifdef DEBUG
+      printf("Decreasing comment depth\n");
+    #endif
+    CommentOpenBraketDepth--;
+  } 
+  else if (CommentOpenBraketDepth == 1)
+  {
+    // End comment
+    #ifdef DEBUG
+      printf("Matched multiline comment\n");
+    #endif
+    ExitCommentState();
+  }
+  else
+  {
+    printf("Should never enter this rule with CommentOpenBraketDepth < 1\n");
+  }
+}
+
+<INITIAL>"*)" {
+  cool_yylval.error_msg = "Unmatched *)";
+  return (ERROR);
 }
 
  /*
   *  The multiple-character operators.
   */
-{DARROW}		{ return (DARROW); }
-{ASSIGN}    { return (ASSIGN); }
-"<="        { return (LE); }
+<INITIAL>{DARROW}		{ return (DARROW); }
+<INITIAL>{ASSIGN}    { return (ASSIGN); }
+<INITIAL>"<="        { return (LE); }
 
 
  /*
@@ -137,33 +188,33 @@ WHITESPACE [ \n\f\r\t\v]
   * which must begin with a lower-case letter.
   */
 
-{CLASS}		  { return (CLASS); }
-{ELSE}		  { return (ELSE); }
-{FI}		    { return (FI); }
-{IF}		    { return (IF); }
-{IN}		    { return (IN); }
-{INHERITS}	{ return (INHERITS); }
-{ISVOID}		{ return (ISVOID); }
-{LET}		    { return (LET); }
-{LOOP}		  { return (LOOP); }
-{POOL}		  { return (POOL); }
-{THEN}		  { return (THEN); }
-{WHILE}		  { return (WHILE); }
-{CASE}		  { return (CASE); }
-{ESAC}		  { return (ESAC); }
-{NEW}		    { return (NEW); }
-{OF}		    { return (OF); }
-{NOT}		    { return (NOT); }
+<INITIAL>{CLASS}		  { return (CLASS); }
+<INITIAL>{ELSE}		  { return (ELSE); }
+<INITIAL>{FI}		    { return (FI); }
+<INITIAL>{IF}		    { return (IF); }
+<INITIAL>{IN}		    { return (IN); }
+<INITIAL>{INHERITS}	{ return (INHERITS); }
+<INITIAL>{ISVOID}		{ return (ISVOID); }
+<INITIAL>{LET}		    { return (LET); }
+<INITIAL>{LOOP}		  { return (LOOP); }
+<INITIAL>{POOL}		  { return (POOL); }
+<INITIAL>{THEN}		  { return (THEN); }
+<INITIAL>{WHILE}		  { return (WHILE); }
+<INITIAL>{CASE}		  { return (CASE); }
+<INITIAL>{ESAC}		  { return (ESAC); }
+<INITIAL>{NEW}		    { return (NEW); }
+<INITIAL>{OF}		    { return (OF); }
+<INITIAL>{NOT}		    { return (NOT); }
 
-{FALSE_RULE} { 
+<INITIAL>{FALSE_RULE} { 
   cool_yylval.boolean = false;
   return (BOOL_CONST); 
 }
-{TRUE_RULE} { 
+<INITIAL>{TRUE_RULE} { 
   cool_yylval.boolean = true;
   return (BOOL_CONST); 
 }
-{SINGLECHARACTER} { 
+<INITIAL>{SINGLECHARACTER} { 
   return ((int)(*yytext)); 
 }
 
@@ -276,7 +327,7 @@ WHITESPACE [ \n\f\r\t\v]
     }
     default:
     {
-      printf("This should never happen!!");
+      printf("Should never end string constant while not in one of the above states \n");
       break;
     }
   }
@@ -284,19 +335,25 @@ WHITESPACE [ \n\f\r\t\v]
   return (retVal);
 }
 
-{DIGIT}+ {
+<INITIAL>{DIGIT}+ {
     cool_yylval.symbol = inttable.add_string(yytext);
     return INT_CONST;
 }
 
-{TYPEIDENTIFIER}  {
+<INITIAL>{TYPEIDENTIFIER}  {
   cool_yylval.symbol = idtable.add_string(yytext);
   return (TYPEID); 
 }
-{OBJIDENTIFIER} {
+<INITIAL>{OBJIDENTIFIER} {
   cool_yylval.symbol = idtable.add_string(yytext);
   return (OBJECTID);
 }
 
-{WHITESPACE}+
+<INITIAL>{WHITESPACE}+
+
+<INITIAL>(.|{WHITESPACE}) {
+  // Failure case for unable to match any character
+  cool_yylval.error_msg = yytext;
+  return ERROR;
+}
 %%
