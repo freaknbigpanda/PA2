@@ -67,7 +67,7 @@ void ExitStringConstantStartState()
 
 // End String Constant Helpers
 
-// Comment helpers
+// Comment Helpers
 
 int CommentOpenBraketDepth = 0;
 
@@ -77,6 +77,16 @@ void ExitCommentState()
   CommentOpenBraketDepth = 0;
 }
 
+// End Comment Helpers
+
+void PossiblyIncrementLineNum()
+{
+  for(int i = 0; i < yyleng; ++i)
+  {
+    if (yytext[i] == '\n') curr_lineno++;
+  }
+}
+
 %}
 
 /*
@@ -84,7 +94,7 @@ void ExitCommentState()
  */
 
 %option noyywrap
-%Start StringConstant MultiLineComment
+%Start StringConstant MultiLineComment SingleLineComment
 
 DARROW =>
 ASSIGN <-
@@ -139,6 +149,7 @@ WHITESPACE [ \n\f\r\t\v]
 
 <MultiLineComment>(.|{WHITESPACE}) {
   // Multiline comment body, just eat all the input
+  PossiblyIncrementLineNum();
 }
 
 <MultiLineComment><<EOF>> {
@@ -238,6 +249,7 @@ WHITESPACE [ \n\f\r\t\v]
   }
   else
   {
+    PossiblyIncrementLineNum();
     // i == 1 because the first character is a double quote
     bool escape = false;
     for(int i = 1; i < yyleng; ++i)
@@ -263,7 +275,7 @@ WHITESPACE [ \n\f\r\t\v]
         return (ERROR);
       }
 
-      if (yytext[i] == '\\') // backslash character
+      if (yytext[i] == '\\' && escape == false) // backslash character
       {
         escape = true;
         continue;
@@ -349,9 +361,11 @@ WHITESPACE [ \n\f\r\t\v]
   return (OBJECTID);
 }
 
-<INITIAL>{WHITESPACE}+
+<INITIAL>{WHITESPACE}+ {
+  PossiblyIncrementLineNum();
+}
 
-<INITIAL>(.|{WHITESPACE}) {
+<INITIAL>. {
   // Failure case for unable to match any character
   cool_yylval.error_msg = yytext;
   return ERROR;
