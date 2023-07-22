@@ -237,10 +237,12 @@ WHITESPACE [ \n\f\r\t\v]
   */
 
 <INITIAL>\"[^"]* {
-  //TOOD: I think this could be simplified to a regex that matches everything instead of using states
+  //TODO: I think this could be simplified to a regex that matches everything instead of using states
   BEGIN StringConstant;
   stringScannerState = StringScannerState::Normal;
-  if (yytext[yyleng-1] == '\\') 
+
+  bool isLastBackslashEscaped = yyleng > 1 ? yytext[yyleng-2] == '\\' : false;
+  if (yytext[yyleng-1] == '\\' && isLastBackslashEscaped == false) 
   {
     // This covers the case where we have an escaped " (\") in the input
     // "abc\"def" will be parsed as "abc"def
