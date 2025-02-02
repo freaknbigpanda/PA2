@@ -17,7 +17,7 @@
 #define yylex  cool_yylex
 
 /* Max size of string constants */
-#define MAX_STR_CONST 1025
+#define MAX_STR_CONST 1024
 #define YY_NO_UNPUT   /* keep g++ happy */
 
 extern FILE *fin; /* we read from this file */
@@ -59,9 +59,8 @@ StringScannerState stringScannerState = StringScannerState::Normal;
 
 void ExitStringConstantStartState()
 {
-  BEGIN INITIAL;
+  BEGIN 0; // Should be BEGIN INITIAL but flex doesn't define INITIAL early enough so we can't use it here
   string_buf_ptr = string_buf;
-  //stringScannerState = StringScannerState::NotScanning;
   stringScannerState = StringScannerState::Normal;
 }
 
@@ -73,7 +72,7 @@ int CommentOpenBraketDepth = 0;
 
 void ExitCommentState()
 {
-  BEGIN INITIAL;
+  BEGIN 0;
   CommentOpenBraketDepth = 0;
 }
 
@@ -127,7 +126,7 @@ TRUE_RULE t[r|R][u|U][e|E]
 WHITESPACE [ \n\f\r\t\v]
 
 %%
-<INITIAL>--.*$ {
+<INITIAL>--.*$|--.* {
   // Comment
 #ifdef DEBUG
   ECHO;
